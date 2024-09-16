@@ -1,14 +1,41 @@
 # NiceRaspUSPTU
+
 ## Description
-A project that allows you to view the schedule in the markdown table format, which can be handy for understanding when subjects begin and end and how much more laboratory work is left
+
+A project that allows you to view the schedule in a markdown table format, making it easy to see when subjects begin and end, as well as how many laboratory sessions are remaining.
 
 ## Features
-- Get schedule by group name
-- Get schedule by weeks
-- Get results in markdown
-- Divide by subgroups flag
 
-## How to run
+- FastAPI web UI
+- Retrieve schedule by group name
+- Retrieve schedule by week
+- Display results in markdown format
+- Option to divide by subgroups
+
+## How to Run
+
+Set environment variables in the Command Prompt like this:
+
+```cmd
+set endpoint="https://URL/"
+set groupname="AAA00-00-00"
+```
+
+Or, you can set environment variables in PowerShell like this:
+
+```powershell
+$env:endpoint = "https://URL/"
+$env:groupname = "AAA00-00-00"
+```
+
+Then execute:
+
 ```bash
-python main.py
+uvicorn main:app --reload
+```
+
+You can access the app at:
+
+```
+http://localhost:8000
 ```

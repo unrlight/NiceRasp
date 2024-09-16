@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание</title>
+    <link rel="stylesheet" href="/static/mdstyles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <h1>Расписание</h1>
+    <form id="form">
+        <label for="group">Группа:</label>
+        <input type="text" id="group" name="group" value="{{ gruppa }}">
+        <label for="beginweek">Начальная неделя:</label>
+        <input type="number" id="beginweek" name="beginweek" value="{{ beginweek }}">
+        <label for="endweek">Конечная неделя:</label>
+        <input type="number" id="endweek" name="endweek" value="{{ endweek }}">
+        <label for="combine_subgroups">Объединить подгруппы:</label>
+        <input type="checkbox" id="combine_subgroups" name="combine_subgroups" {% if combine_subgroups %}checked{% endif %}>
+        <button type="submit">Обновить</button>
+        <h2>Текущая неделя - {{ current_week }}</h2>
+    </form>
+    <div id="schedule-container">
+        <div id="schedule">
+        </div>
+    </div>
+
+    <div id="error-container" style="color: red;"></div>
+
+    <script>
+        async function fetchSchedule() {
+            const group = document.getElementById('group').value;
+            const beginweek = parseInt(document.getElementById('beginweek').value);
+            const endweek = parseInt(document.getElementById('endweek').value);
+            const combineSubgroups = document.getElementById('combine_subgroups').checked;
+
+            try {
+                const body = JSON.stringify({
+                    gruppa: group,
+                    beginweek: beginweek,
+                    endweek: endweek,
+                    combine_subgroups: combineSubgroups
+                });
+
+                const response = await fetch('/schedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: body
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.text();
+
+                const scheduleElement = document.getElementById('schedule');
+                scheduleElement.innerHTML = marked.parse(data);
+
+                document.getElementById('error-container').innerHTML = '';
+
+            } catch (error) {
+                document.getElementById('error-container').innerHTML = error.message;
+            }
+        }
+
+        document.getElementById('form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            fetchSchedule();
+        });
+
+        document.getElementById('combine_subgroups').addEventListener('change', function() {
+            fetchSchedule();
+        });
+
+        window.onload = fetchSchedule;
+    </script>
+    
+</body>
+</html>
