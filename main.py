@@ -5,6 +5,7 @@ from datetime import timedelta, date
 gruppa = "МПО02-24-01"
 beginweek = 1
 endweek = 20
+combine_subgroups = 0  # 0 — делить по подгруппам, 1 — объединять подгруппы
 
 def get_schedule(gruppa, beginweek, endweek):
     url = "https://raspisanie.rusoil.net/origins/get_rasp_student"
@@ -42,9 +43,9 @@ def get_dates_by_week_day_and_pair(beginweek, endweek, dayweek, para):
             7: "19:50-21:15"
         }
         
-        date_str = lesson_date.strftime("%Y-%m-%d")
+        date_str = lesson_date.strftime("%d.%m")
         time_str = lesson_time.get(para, "Неизвестное время")
-        dates.append((date_str, time_str))
+        dates.append((date_str, time_str, week))
     
     return dates
 
@@ -53,13 +54,15 @@ def sort_lessons_by_date(lessons):
         lesson["BEGINWEEK"], lesson["DAYWEEK"], lesson["PARA"]
     ))
 
-
 def generate_markdown_table(schedule):
     subjects = {}
 
     for lesson in schedule:
         subject = lesson["NDISC"]
         podgruppa = lesson["PODGRUPPA"] or "Общая"
+        
+        if combine_subgroups == 1:
+            podgruppa = "Общая"
         
         if subject not in subjects:
             subjects[subject] = {}
@@ -89,20 +92,22 @@ def generate_markdown_table(schedule):
             print(f"### {type_name}")
             
             for podgruppa, lessons in lessons_by_podgruppa.items():
-                if podgruppa != "Общая":
+                if combine_subgroups == 0 and podgruppa != "Общая" and len(lessons_by_podgruppa) > 1:
                     print(f"#### Подгруппа {podgruppa}")
                 
-                print("| Дата | Время | Кабинет | Преподаватель |")
-                print("|------|-------|---------|---------------|")
+                print("| №  | Дата  | Время | Кабинет | Преподаватель | Неделя |")
+                print("|----|-------|-------|---------|---------------|--------|")
                 
                 sorted_lessons = sort_lessons_by_date(lessons)
+                lesson_counter = 0
                 
                 for lesson in sorted_lessons:
+                    lesson_counter += 1
                     dates = get_dates_by_week_day_and_pair(lesson["BEGINWEEK"], lesson["ENDWEEK"], lesson["DAYWEEK"], lesson["PARA"])
-                    for date_str, time_str in dates:
-                        aud = lesson["AUD"] if lesson["AUD"] else "Дистант(?)"
-                        teacher = lesson.get("TEACHER_NAME", "Неизвестно")
-                        print(f"| {date_str} | {time_str} | {aud} | {teacher} |")
+                    for date_str, time_str, week in dates:
+                        aud = lesson["AUD"] if lesson["AUD"] != "-" else "-"
+                        teacher = lesson.get("FIO", "Неизвестно")
+                        print(f"| {lesson_counter} | {date_str} | {time_str} | {aud} | {teacher} | {week} |")
                 
         print("\n")
 
