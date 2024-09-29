@@ -4,14 +4,15 @@
 
 A project that allows you to view the schedule in a markdown table format, making it easy to see when subjects begin and end, as well as how many laboratory sessions are remaining.
 
-![image](images/image.png)
+![image](images/image1.png)
+![image](images/image2.png)
 
 ## Features
 
-- FastAPI web UI
-- Retrieve schedule by group name
-- Retrieve schedule by week
-- Display results in markdown format
+- Nice webui with fastapi
+- Retrieve schedule by group name and interval of weeks
+- Display results in markdown format (render in html with marked.js)
+- hide past lessons
 - Option to divide by subgroups
 
 ## How to Run
