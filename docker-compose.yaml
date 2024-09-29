@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  fastapi-app:
+    build: .
+    container_name: NiceRasp
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: always

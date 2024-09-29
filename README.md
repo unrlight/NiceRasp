@@ -42,3 +42,17 @@ You can access the app at:
 ```
 http://localhost:8000
 ```
+
+## Use with docker
+
+Build with docker
+
+```powershell
+docker-compose up --build
+```
+
+You can access the app at:
+
+```
+http://localhost:8000
+```
