@@ -24,13 +24,16 @@
         <h2>Текущая неделя - {{ current_week }}</h2>
     </form>
     <div id="schedule-container">
-        <div id="schedule">
-        </div>
+        <label id='pb_load_label'>Прогресс загрузки расписания:</label>
+        <progress id='pb_load' max='100' value='0'>0%</progress><br>
+        <div id="schedule"></div>
     </div>
 
     <div id="error-container" style="color: red;"></div>
 
     <script>
+        let socket;
+
         async function fetchSchedule() {
             const group = document.getElementById('group').value;
             const beginweek = parseInt(document.getElementById('beginweek').value);
@@ -39,6 +42,10 @@
             const strikethroughPast = document.getElementById('strikethrough_past').checked;
 
             try {
+                document.getElementById('schedule').innerHTML = '';
+                document.getElementById('pb_load').value = 0;
+                document.getElementById('pb_load').style.display = 'block';
+
                 const body = JSON.stringify({
                     gruppa: group,
                     beginweek: beginweek,
@@ -59,16 +66,54 @@
                     throw new Error(`Ошибка: ${response.status} ${response.statusText}`);
                 }
 
-                const data = await response.text();
+                const data = await response.json();
+                const markdown = data.markdown;
+                const progress = data.progress;
 
-                const scheduleElement = document.getElementById('schedule');
-                scheduleElement.innerHTML = marked.parse(data);
+                document.getElementById('pb_load').value = progress;
+                document.getElementById('pb_load').innerHTML = `${progress}%`;
+
+                const scheduleDiv = document.getElementById('schedule');
+                scheduleDiv.innerHTML = marked.parse(markdown);
 
                 document.getElementById('error-container').innerHTML = '';
+                document.getElementById('pb_load').style.display = 'none';
+                document.getElementById('pb_load_label').style.display = 'none';
 
             } catch (error) {
                 document.getElementById('error-container').innerHTML = error.message;
+                document.getElementById('pb_load').style.display = 'none';
+                document.getElementById('pb_load_label').style.display = 'none';
             }
+        }
+
+        function initWebSocket() {
+            socket = new WebSocket(`ws://${window.location.host}/ws/progress`);
+
+            socket.onopen = function() {
+                console.log("WebSocket соединение установлено");
+            };
+
+            socket.onmessage = function(event) {
+                const data = event.data;
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.progress !== undefined) {
+                        document.getElementById('pb_load').value = parsed.progress;
+                        document.getElementById('pb_load').innerHTML = `${parsed.progress}%`;
+                    }
+                } catch (e) {
+                    console.error("Ошибка парсинга данных WebSocket:", e);
+                }
+            };
+
+            socket.onclose = function() {
+                console.log("WebSocket соединение закрыто");
+            };
+
+            socket.onerror = function(error) {
+                console.error("WebSocket ошибка:", error);
+            };
         }
 
         document.getElementById('form').addEventListener('submit', function(event) {
@@ -76,16 +121,11 @@
             fetchSchedule();
         });
 
-        document.getElementById('combine_subgroups').addEventListener('change', function() {
+        document.addEventListener('DOMContentLoaded', function() {
+            initWebSocket();
+            event.preventDefault();
             fetchSchedule();
         });
-
-        document.getElementById('strikethrough_past').addEventListener('change', function() {
-            fetchSchedule();
-        });
-
-        window.onload = fetchSchedule;
     </script>
-    
 </body>
 </html>

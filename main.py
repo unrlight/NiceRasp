@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -8,6 +8,8 @@ import json
 from datetime import timedelta, date, datetime
 from dotenv import load_dotenv
 import os
+import asyncio
+from typing import List
 
 load_dotenv()
 
@@ -25,8 +27,29 @@ class ScheduleRequest(BaseModel):
     beginweek: int
     endweek: int
     combine_subgroups: bool
-    strikethrough_past: bool = True  # Добавляем новый флаг, по умолчанию True
+    strikethrough_past: bool = True
 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print("Клиент подключен")
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+        print("Клиент отключен")
+
+    async def send_progress(self, progress: int):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json({"progress": progress})
+            except Exception as e:
+                print(f"Ошибка отправки прогресса: {e}")
+
+manager = ConnectionManager()
 
 def get_current_week(start_date=date(2024, 9, 2)):
     current_date = datetime.now().date()
@@ -56,7 +79,8 @@ def get_schedule(gruppa, beginweek, endweek):
             raise HTTPException(status_code=504, detail="Ошибка: Gateway Timeout (504)")
 
         if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail=f"Ошибка при получении данных: {response.status_code}")
+            raise HTTPException(status_code=response.status_code,
+                                detail=f"Ошибка при получении данных: {response.status_code}")
 
         return response.json()
 
@@ -175,28 +199,44 @@ async def read_root(request: Request):
         "beginweek": 1,
         "endweek": 1,
         "combine_subgroups": False,
-        "strikethrough_past": True,  # Передаем значение флага в шаблон
+        "strikethrough_past": True,
         "current_week": current_week
     })
 
 
-@app.post("/schedule", response_class=HTMLResponse)
+@app.post("/schedule")
 async def get_schedule_route(schedule_request: ScheduleRequest):
     try:
         print(f"Получены данные: {schedule_request}")
 
         schedule = []
-        for week in range(schedule_request.beginweek, schedule_request.endweek + 1):
+        total_weeks = schedule_request.endweek - schedule_request.beginweek + 1
+
+        for i, week in enumerate(range(schedule_request.beginweek, schedule_request.endweek + 1)):
             week_schedule = get_schedule(schedule_request.gruppa, week, week)
             print(f"Неделя {week}: {week_schedule}")
             schedule.extend(week_schedule)
 
-        markdown_content = generate_markdown_table(schedule, schedule_request.combine_subgroups,
-                                                  schedule_request.strikethrough_past)
-        print(f"Сгенерирован Markdown: {markdown_content}")
+            progress = int((i + 1) / total_weeks * 100)
+            await manager.send_progress(progress)
 
-        return markdown_content
+            await asyncio.sleep(0.1)
+
+        markdown_content = generate_markdown_table(schedule, schedule_request.combine_subgroups,
+                                                    schedule_request.strikethrough_past)
+
+        return {"markdown": markdown_content, "progress": 100}
 
     except Exception as e:
         print(f"Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.websocket("/ws/progress")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await asyncio.sleep(1)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
