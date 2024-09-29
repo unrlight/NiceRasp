@@ -18,6 +18,8 @@
         <input type="number" id="endweek" name="endweek" value="{{ endweek }}">
         <label for="combine_subgroups">Объединить подгруппы:</label>
         <input type="checkbox" id="combine_subgroups" name="combine_subgroups" {% if combine_subgroups %}checked{% endif %}>
+        <label for="strikethrough_past">Зачеркивать прошедшее:</label>
+        <input type="checkbox" id="strikethrough_past" name="strikethrough_past" {% if strikethrough_past %}checked{% endif %}>
         <button type="submit">Обновить</button>
         <h2>Текущая неделя - {{ current_week }}</h2>
     </form>
@@ -34,13 +36,15 @@
             const beginweek = parseInt(document.getElementById('beginweek').value);
             const endweek = parseInt(document.getElementById('endweek').value);
             const combineSubgroups = document.getElementById('combine_subgroups').checked;
+            const strikethroughPast = document.getElementById('strikethrough_past').checked;
 
             try {
                 const body = JSON.stringify({
                     gruppa: group,
                     beginweek: beginweek,
                     endweek: endweek,
-                    combine_subgroups: combineSubgroups
+                    combine_subgroups: combineSubgroups,
+                    strikethrough_past: strikethroughPast
                 });
 
                 const response = await fetch('/schedule', {
@@ -73,6 +77,10 @@
         });
 
         document.getElementById('combine_subgroups').addEventListener('change', function() {
+            fetchSchedule();
+        });
+
+        document.getElementById('strikethrough_past').addEventListener('change', function() {
             fetchSchedule();
         });
 

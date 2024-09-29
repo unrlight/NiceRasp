@@ -25,12 +25,15 @@ class ScheduleRequest(BaseModel):
     beginweek: int
     endweek: int
     combine_subgroups: bool
+    strikethrough_past: bool = True  # Добавляем новый флаг, по умолчанию True
+
 
 def get_current_week(start_date=date(2024, 9, 2)):
     current_date = datetime.now().date()
     delta = current_date - start_date
     current_week = delta.days // 7 + 1
     return current_week
+
 
 def get_schedule(gruppa, beginweek, endweek):
     url = endpoint
@@ -92,7 +95,7 @@ def sort_lessons_by_date(lessons):
     ))
 
 
-def generate_markdown_table(schedule, combine_subgroups):
+def generate_markdown_table(schedule, combine_subgroups, strikethrough_past):
     subjects = {}
 
     for lesson in schedule:
@@ -141,12 +144,24 @@ def generate_markdown_table(schedule, combine_subgroups):
                 sorted_lessons = sort_lessons_by_date(lessons)
 
                 for lesson_counter, lesson in enumerate(sorted_lessons, 1):
-                    dates = get_dates_by_week_day_and_pair(lesson["BEGINWEEK"], lesson["ENDWEEK"], lesson["DAYWEEK"], lesson["PARA"])
+                    dates = get_dates_by_week_day_and_pair(lesson["BEGINWEEK"], lesson["ENDWEEK"], lesson["DAYWEEK"],
+                                                         lesson["PARA"])
 
                     for date_str, time_str, week in dates:
                         aud = lesson["AUD"] if lesson["AUD"] != "-" else "-"
                         teacher = lesson.get("FIO", "Неизвестно")
-                        md_output.append(f"| {lesson_counter} | {date_str} | {time_str} | {aud} | {teacher} | {week} |")
+
+                        # Проверяем, прошла ли пара
+                        lesson_date = datetime.strptime(date_str, "%d.%m").replace(year=datetime.now().year)
+                        lesson_time = datetime.strptime(time_str.split('-')[1], "%H:%M").time()  # Берем время окончания пары
+                        is_past = datetime.combine(lesson_date, lesson_time) < datetime.now()
+
+                        if strikethrough_past and is_past:
+                            md_output.append(
+                                f"| {lesson_counter} | ~~{date_str}~~ | ~~{time_str}~~ | ~~{aud}~~ | ~~{teacher}~~ | ~~{week}~~ |")
+                        else:
+                            md_output.append(
+                                f"| {lesson_counter} | {date_str} | {time_str} | {aud} | {teacher} | {week} |")
 
     return "\n".join(md_output)
 
@@ -155,26 +170,29 @@ def generate_markdown_table(schedule, combine_subgroups):
 async def read_root(request: Request):
     current_week = get_current_week()
     return templates.TemplateResponse("schedule.html", {
-        "request": request, 
-        "gruppa": groupname, 
-        "beginweek": 1, 
-        "endweek": 1, 
+        "request": request,
+        "gruppa": groupname,
+        "beginweek": 1,
+        "endweek": 1,
         "combine_subgroups": False,
+        "strikethrough_past": True,  # Передаем значение флага в шаблон
         "current_week": current_week
     })
+
 
 @app.post("/schedule", response_class=HTMLResponse)
 async def get_schedule_route(schedule_request: ScheduleRequest):
     try:
         print(f"Получены данные: {schedule_request}")
-        
+
         schedule = []
         for week in range(schedule_request.beginweek, schedule_request.endweek + 1):
             week_schedule = get_schedule(schedule_request.gruppa, week, week)
             print(f"Неделя {week}: {week_schedule}")
             schedule.extend(week_schedule)
 
-        markdown_content = generate_markdown_table(schedule, schedule_request.combine_subgroups)
+        markdown_content = generate_markdown_table(schedule, schedule_request.combine_subgroups,
+                                                  schedule_request.strikethrough_past)
         print(f"Сгенерирован Markdown: {markdown_content}")
 
         return markdown_content
